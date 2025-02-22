@@ -916,16 +916,6 @@ contract IFO is ReentrancyGuard {
         }
     }
 
-    // If user sent stablecoin token instead of WETH
-    function governanceRecoverUnsupported(
-        IBEP20 _token,
-        uint256 amount,
-        address to
-    ) external onlyAdmin {
-        require(block.number > endBlock, 'wait until presale end');
-        _token.safeTransfer(to, amount);
-    }
-
     // If user sent ETH token instead of WETH
     function recoverETH(uint256 amount, address payable to) external onlyAdmin {
         require(block.number > endBlock, "wait until presale end");
