@@ -1,3 +1,7 @@
+/**
+ *Submitted for verification at BscScan.com on 2021-08-29
+*/
+
 // SPDX-License-Identifier: MIT
 
 pragma solidity >=0.6.0 <0.8.0;
@@ -259,7 +263,7 @@ pragma solidity >=0.6.0 <0.8.0;
  *
  * This contract is only required for intermediate, library-like contracts.
  */
-Unichain contract Context {
+abstract contract Context {
     function _msgSender() internal view virtual returns (address payable) {
         return msg.sender;
     }
@@ -286,7 +290,7 @@ pragma solidity >=0.6.0 <0.8.0;
  * `onlyOwner`, which can be applied to your functions to restrict their use to
  * the owner.
  */
-Unichain contract Ownable is Context {
+abstract contract Ownable is Context {
     address private _owner;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -358,7 +362,7 @@ pragma solidity >=0.6.0 <0.8.0;
  * to protect against it, check out our blog post
  * https://blog.openzeppelin.com/reentrancy-after-istanbul/[Reentrancy After Istanbul].
  */
-Unichain contract ReentrancyGuard {
+abstract contract ReentrancyGuard {
     // Booleans are more expensive than uint256 or any type that takes up a full
     // word because each write operation emits an extra SLOAD to first read the
     // slot's contents, replace the bits taken up by the boolean, and then write
@@ -796,6 +800,9 @@ contract IFO is ReentrancyGuard {
     mapping(address => UserInfo) public userInfo;
     // participators
     address[] public addressList;
+    // final withdraw to address
+    address public withdrawAddress;
+
 
     event Deposit(address indexed user, uint256 amount);
     event Harvest(address indexed user, uint256 offeringAmount, uint256 excessAmount);
@@ -807,7 +814,8 @@ contract IFO is ReentrancyGuard {
         uint256 _endBlock,
         uint256 _offeringAmount,
         uint256 _raisingAmount,
-        address _adminAddress
+        address _adminAddress,
+        address _withdrawAddress
     ) public {
         lpToken = _lpToken;
         offeringToken = _offeringToken;
@@ -817,6 +825,7 @@ contract IFO is ReentrancyGuard {
         raisingAmount = _raisingAmount;
         totalAmount = 0;
         adminAddress = _adminAddress;
+        withdrawAddress = _withdrawAddress;
     }
 
     modifier onlyAdmin() {
@@ -825,13 +834,16 @@ contract IFO is ReentrancyGuard {
     }
 
     function setOfferingAmount(uint256 _offerAmount) public onlyAdmin {
-        require (block.number < startBlock, 'no');
         offeringAmount = _offerAmount;
     }
 
     function setRaisingAmount(uint256 _raisingAmount) public onlyAdmin {
-        require (block.number < startBlock, 'no');
-        raisingAmount= _raisingAmount;
+        raisingAmount = _raisingAmount;
+    }
+
+    function setBlocks(uint256 _startBlock, uint256 _endBlock) external onlyAdmin {
+        startBlock = _startBlock;
+        endBlock = _endBlock;
     }
 
     function deposit(uint256 _amount) public nonReentrant {
@@ -898,12 +910,25 @@ contract IFO is ReentrancyGuard {
     }
 
     function finalWithdraw(uint256 _lpAmount, uint256 _offerAmount) public onlyAdmin {
-        require (_lpAmount < lpToken.balanceOf(address(this)), 'not enough token 0');
-        require (_offerAmount < offeringToken.balanceOf(address(this)), 'not enough token 1');
-        lpToken.safeTransfer(address(msg.sender), _lpAmount);
-        offeringToken.safeTransfer(address(msg.sender), _offerAmount);
-  }
+        require(_lpAmount <= lpToken.balanceOf(address(this)), 'not enough token 0');
+        require(_offerAmount <= offeringToken.balanceOf(address(this)), 'not enough token 1');
+        if (_offerAmount > 0) {
+            offeringToken.safeTransfer(withdrawAddress, _offerAmount);
+        }
+        if (_lpAmount > 0) {
+            lpToken.safeTransfer(withdrawAddress, _lpAmount);
+        }
+    }
 
+    // If user sent stablecoin token instead of WETH
+    function governanceRecoverUnsupported(
+        IBEP20 _token,
+        uint256 amount,
+        address to
+    ) external onlyAdmin {
+        require(block.number > endBlock, 'wait until presale end');
+        _token.safeTransfer(to, amount);
+    }
 
     // If user sent ETH token instead of WETH
     function recoverETH(uint256 amount, address payable to) external onlyAdmin {
